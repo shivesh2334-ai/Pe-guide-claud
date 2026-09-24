@@ -6,10 +6,13 @@
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
-    "lint": "eslint ."
+    "lint": "next lint",
+    "export-chunks": "tsx scripts/export-chunks.ts",
+    "ingest": "npm run export-chunks && node scripts/ingest.js"
   },
   "dependencies": {
-    "next": "^16.3.6",
+    "@supabase/supabase-js": "^2.117.1",
+    "next": "^15.5.24",
     "react": "^18",
     "react-dom": "^18"
   },
@@ -17,10 +20,12 @@
     "@types/node": "^20",
     "@types/react": "^18",
     "@types/react-dom": "^18",
-    "eslint": "^9.39.5",
-    "eslint-config-next": "^16.3.6",
+    "dotenv": "^18.0.3",
+    "eslint": "^8",
+    "eslint-config-next": "^15.5.24",
     "postcss": "^8",
     "tailwindcss": "^3.4.1",
+    "tsx": "^4.23.15",
     "typescript": "^5"
   }
 }

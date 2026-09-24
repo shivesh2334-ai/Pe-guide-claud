@@ -141,4 +141,6 @@ export interface EngineOutput {
   diagnosisSuggestions: string[];
   treatmentPlan: TreatmentPlan;
   guidelineReferences: { chunkId: string; heading: string }[];
+  /** Query terms used for guideline retrieval — reused by the client to call the vector-retrieval API route. */
+  guidelineQueryTerms: string[];
 }
