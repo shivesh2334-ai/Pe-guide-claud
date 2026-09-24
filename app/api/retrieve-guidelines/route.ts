@@ -23,8 +23,14 @@ interface MatchRow {
 
 export async function POST(req: NextRequest) {
   const body = await req.json().catch(() => ({}));
-  const queryTerms: string[] = Array.isArray(body?.queryTerms) ? body.queryTerms : [];
-  const topN: number = typeof body?.topN === 'number' ? body.topN : 6;
+  const queryTerms: string[] = Array.isArray(body?.queryTerms)
+    ? body.queryTerms
+        .filter((term: unknown): term is string => typeof term === 'string')
+        .map((term: string) => term.trim())
+        .filter(Boolean)
+    : [];
+  const requestedTopN = typeof body?.topN === 'number' ? body.topN : 6;
+  const topN = Math.min(12, Math.max(1, Math.floor(requestedTopN)));
 
   const backendReady = isSupabaseConfigured() && isEmbeddingConfigured();
 

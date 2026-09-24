@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { EngineOutput } from '@/lib/types';
 import { GUIDELINE_CHUNKS } from '@/lib/guidelineKnowledgeBase';
 
@@ -12,6 +12,12 @@ interface RetrievedReference {
   source: 'vector' | 'lexical';
 }
 
+function getLexicalFallbackRefs(guidelineReferences: EngineOutput['guidelineReferences']): RetrievedReference[] {
+  return guidelineReferences.map((r) => {
+    const chunk = GUIDELINE_CHUNKS.find((c) => c.id === r.chunkId);
+    return { chunkId: r.chunkId, heading: r.heading, text: chunk?.text ?? '', similarity: null, source: 'lexical' as const };
+  });
+}
 
 
 const riskColor: Record<string, string> = {
@@ -32,32 +38,34 @@ function Card({ title, children }: { title: string; children: React.ReactNode })
 
 export function ResultsPanel({ output }: { output: EngineOutput }) {
   const { riskStratification, investigations, diagnosisSuggestions, treatmentPlan } = output;
-
-  const [refs, setRefs] = useState<RetrievedReference[]>(
-    output.guidelineReferences.map((r) => {
-      const chunk = GUIDELINE_CHUNKS.find((c) => c.id === r.chunkId);
-      return { chunkId: r.chunkId, heading: r.heading, text: chunk?.text ?? '', similarity: null, source: 'lexical' as const };
-    })
+  const queryTermsKey = useMemo(
+    () =>
+      output.guidelineQueryTerms
+        .filter((term) => typeof term === 'string')
+        .map((term) => term.trim().toLowerCase())
+        .filter(Boolean)
+        .sort()
+        .join('\u0000'),
+    [output.guidelineQueryTerms]
   );
+  const queryTerms = useMemo(() => (queryTermsKey ? queryTermsKey.split('\u0000') : []), [queryTermsKey]);
+  const lexicalFallbackRefs = useMemo(() => getLexicalFallbackRefs(output.guidelineReferences), [output.guidelineReferences]);
+
+  const [refs, setRefs] = useState<RetrievedReference[]>(lexicalFallbackRefs);
   const [backend, setBackend] = useState<'vector' | 'lexical'>('lexical');
   const [loading, setLoading] = useState(false);
   const [warning, setWarning] = useState<string | null>(null);
 
   useEffect(() => {
     let cancelled = false;
-    setRefs(
-      output.guidelineReferences.map((r) => {
-        const chunk = GUIDELINE_CHUNKS.find((c) => c.id === r.chunkId);
-        return { chunkId: r.chunkId, heading: r.heading, text: chunk?.text ?? '', similarity: null, source: 'lexical' as const };
-      })
-    );
+    setRefs(lexicalFallbackRefs);
     setBackend('lexical');
     setWarning(null);
     setLoading(true);
     fetch('/api/retrieve-guidelines', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ queryTerms: output.guidelineQueryTerms, topN: 6 }),
+      body: JSON.stringify({ queryTerms, topN: 6 }),
     })
       .then((r) => r.json())
       .then((data) => {
@@ -75,8 +83,7 @@ export function ResultsPanel({ output }: { output: EngineOutput }) {
     return () => {
       cancelled = true;
     };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [JSON.stringify(output.guidelineQueryTerms)]);
+  }, [lexicalFallbackRefs, queryTerms]);
 
   return (
     <div className="space-y-5">

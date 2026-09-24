@@ -43,18 +43,9 @@ async function embedBatch(texts) {
 }
 
 // --- Load chunks -----------------------------------------------------------
-// We load the TS source with a tiny regex-free approach: require ts-node on
-// the fly isn't worth the dependency here, so this script keeps its own copy
-// in sync by re-exporting from a small JS shim generated at run time is
-// overkill — instead we just import the compiled chunk list via a dynamic
-// import of the TS file using Node's native TS stripping is not guaranteed
-// across Node versions, so we shell out to `next info`-free approach: read
-// and eval the exported array directly.
-//
-// Simplest robust option: duplicate-free, we require the same data by
-// invoking a tiny esbuild-register-free loader is unnecessary complexity for
-// ~20 objects — so this script imports guidelineChunks.json, which
-// `npm run export-chunks` regenerates from the TypeScript source of truth.
+// This script reads `guidelineChunks.generated.json`.
+// Run `npm run export-chunks` to regenerate that file from
+// `lib/guidelineKnowledgeBase.ts` before ingesting.
 const fs = require('fs');
 const path = require('path');
 
