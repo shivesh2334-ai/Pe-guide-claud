@@ -51,6 +51,7 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ backend: 'vector', results });
     } catch (err: unknown) {
       // Fall through to lexical retrieval below; report the failure so the UI can surface it.
+      console.error('Vector retrieval failed; falling back to lexical retrieval.', err);
       const lexical = retrieveGuidelineChunks(queryTerms, topN);
       const results: RetrievedReference[] = lexical.map((c) => ({
         chunkId: c.id,
@@ -62,7 +63,7 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({
         backend: 'lexical',
         results,
-        warning: `Vector backend configured but the call failed, fell back to lexical retrieval: ${err instanceof Error ? err.message : String(err)}`,
+        warning: 'Vector retrieval is currently unavailable; serving lexical keyword retrieval.',
       });
     }
   }

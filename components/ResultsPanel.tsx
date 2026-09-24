@@ -45,6 +45,14 @@ export function ResultsPanel({ output }: { output: EngineOutput }) {
 
   useEffect(() => {
     let cancelled = false;
+    setRefs(
+      output.guidelineReferences.map((r) => {
+        const chunk = GUIDELINE_CHUNKS.find((c) => c.id === r.chunkId);
+        return { chunkId: r.chunkId, heading: r.heading, text: chunk?.text ?? '', similarity: null, source: 'lexical' as const };
+      })
+    );
+    setBackend('lexical');
+    setWarning(null);
     setLoading(true);
     fetch('/api/retrieve-guidelines', {
       method: 'POST',
