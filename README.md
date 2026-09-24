@@ -37,7 +37,7 @@ review current through Aug 2026; topic last updated Sep 11, 2026.
 
 ## Stack
 
-Next.js 14 (App Router) · TypeScript · Tailwind CSS. No backend/database is
+Next.js 15 (App Router) · TypeScript · Tailwind CSS. No backend/database is
 required to run the deterministic engine — everything computes client-side
 from the guideline logic in `lib/engine.ts`.
 

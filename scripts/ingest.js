@@ -18,6 +18,7 @@ const SUPABASE_SERVICE_ROLE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY;
 const EMBEDDINGS_API_KEY = process.env.EMBEDDINGS_API_KEY;
 const EMBEDDINGS_BASE_URL = process.env.EMBEDDINGS_BASE_URL || 'https://api.openai.com/v1';
 const EMBEDDINGS_MODEL = process.env.EMBEDDINGS_MODEL || 'text-embedding-3-small';
+const DEFAULT_SOURCE = 'Weinberg AS, Rali P. Acute pulmonary embolism in adults: Treatment overview and prognosis. UpToDate, Topic 8265 Version 121.0.';
 
 if (!SUPABASE_URL || !SUPABASE_SERVICE_ROLE_KEY) {
   console.error('Missing SUPABASE_URL / SUPABASE_SERVICE_ROLE_KEY in .env.local — see .env.example.');
@@ -82,6 +83,7 @@ async function main() {
         id: c.id,
         heading: c.heading,
         content: c.text,
+        source: c.source || DEFAULT_SOURCE,
         keywords: c.keywords || [],
         embedding: embeddings[j],
       });
