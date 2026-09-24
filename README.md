@@ -37,32 +37,57 @@ review current through Aug 2026; topic last updated Sep 11, 2026.
 
 ## Stack
 
-Next.js 16 (App Router) · TypeScript · Tailwind CSS. No backend/database is
+Next.js 14 (App Router) · TypeScript · Tailwind CSS. No backend/database is
 required to run the deterministic engine — everything computes client-side
 from the guideline logic in `lib/engine.ts`.
 
-## About the retrieval layer (important caveat)
+## Retrieval layer: vector RAG (Supabase pgvector) with automatic fallback
 
-You asked for RAG "from guidelines and information attached." What's shipped
-here (`lib/guidelineKnowledgeBase.ts`) is a **lexical keyword retriever**
-over ~20 hand-chunked passages from the UpToDate topic you pasted in — it
-scores chunks by keyword overlap with the current case's risk category and
-flags, not by vector similarity. It needs no API key and works entirely
-offline/client-side, which is why it was the fastest path to a working v1.
+v2 adds real embedding-based retrieval, with the v1 lexical retriever kept as
+an automatic fallback so the app degrades gracefully if the vector backend
+isn't configured (e.g. right after cloning, before you've set env vars).
 
-If you want *real* embedding-based RAG (e.g., so you can later drop in more
-source documents — ESC 2019 full guideline PDF, AHA/ACC 2026 full guideline,
-local hospital protocols — and have it retrieve semantically rather than by
-keyword), the natural upgrade given your stack is:
-- Chunk documents → embed with an OpenAI-compatible embeddings endpoint →
-  store vectors in **Supabase pgvector** (you're already using Supabase
-  elsewhere) → replace `retrieveGuidelineChunks()` in
-  `lib/guidelineKnowledgeBase.ts` with a call to a `match_documents` RPC.
-- That requires an embeddings API key as a Vercel environment variable,
-  which I didn't want to assume/fabricate here.
+**How it works:**
+- `supabase/schema.sql` — creates a `guideline_chunks` table (pgvector column)
+  and a `match_guideline_chunks` similarity-search RPC. Run this once in your
+  Supabase project's SQL editor.
+- `scripts/export-chunks.ts` + `scripts/ingest.js` — export the TypeScript
+  corpus in `lib/guidelineKnowledgeBase.ts` to JSON, embed each chunk, and
+  upsert into Supabase. Run `npm run ingest` any time you edit or add source
+  chunks.
+- `app/api/retrieve-guidelines/route.ts` — a server-only Route Handler that
+  embeds the current case's query terms, calls the Supabase RPC for
+  cosine-similarity search, and returns the top matches with similarity
+  scores. If `SUPABASE_URL` / `SUPABASE_SERVICE_ROLE_KEY` /
+  `EMBEDDINGS_API_KEY` are missing, or the call errors, it transparently
+  falls back to the lexical retriever and says so in a `warning` field.
+- `components/ResultsPanel.tsx` — calls that route on every assessment
+  change and shows a badge ("Vector RAG (Supabase pgvector)" vs "Lexical
+  keyword retrieval (fallback)") plus per-result similarity scores, so it's
+  always visible which retrieval path served a given answer.
 
-Say the word and I'll wire that up as a v2 (same UI, swapped retrieval
-backend).
+**Setup (one-time):**
+1. Create a Supabase project (or reuse an existing one from your stack).
+2. Supabase dashboard → SQL Editor → paste and run `supabase/schema.sql`.
+3. Get your Project URL and `service_role` key from Settings → API.
+4. Get an embeddings API key (OpenAI, or any OpenAI-compatible provider).
+5. `cp .env.example .env.local` and fill in `SUPABASE_URL`,
+   `SUPABASE_SERVICE_ROLE_KEY`, `EMBEDDINGS_API_KEY`.
+6. `npm run ingest` — embeds and loads the 20 seed chunks into Supabase.
+7. In Vercel → Project Settings → Environment Variables, set the same three
+   variables for Production (and Preview, if you want it there too), then
+   redeploy.
+
+**Adding more source documents** (full ESC 2019 / AHA-ACC 2026 guideline
+PDFs, your own institutional protocols, etc.): add entries with the shape
+`{ id, heading, text, keywords }` to `lib/guidelineKnowledgeBase.ts`'s
+`GUIDELINE_CHUNKS` array (a few hundred words per chunk is a good size), then
+re-run `npm run ingest` to re-embed and upsert everything.
+
+**Cost/ops note:** each assessment change triggers one embeddings API call
+(a few hundred input tokens) plus one Supabase query — trivial cost at
+individual-clinician usage, but if you expect heavy concurrent use, consider
+debouncing the `ResultsPanel` fetch (currently fires on every form edit).
 
 ## Local development
 

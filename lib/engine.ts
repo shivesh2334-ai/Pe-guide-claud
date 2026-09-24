@@ -415,5 +415,5 @@ export function runPeAssessment(input: PeAssessmentInput): EngineOutput {
   const chunks = retrieveGuidelineChunks(queryTerms, 6);
   const guidelineReferences = chunks.map((c) => ({ chunkId: c.id, heading: c.heading }));
 
-  return { riskStratification, investigations, diagnosisSuggestions, treatmentPlan, guidelineReferences };
+  return { riskStratification, investigations, diagnosisSuggestions, treatmentPlan, guidelineReferences, guidelineQueryTerms: queryTerms };
 }

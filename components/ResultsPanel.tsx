@@ -1,8 +1,18 @@
 'use client';
 
-import React from 'react';
+import React, { useEffect, useState } from 'react';
 import { EngineOutput } from '@/lib/types';
 import { GUIDELINE_CHUNKS } from '@/lib/guidelineKnowledgeBase';
+
+interface RetrievedReference {
+  chunkId: string;
+  heading: string;
+  text: string;
+  similarity: number | null;
+  source: 'vector' | 'lexical';
+}
+
+
 
 const riskColor: Record<string, string> = {
   low: 'bg-emerald-100 text-emerald-800 border-emerald-300',
@@ -21,7 +31,44 @@ function Card({ title, children }: { title: string; children: React.ReactNode })
 }
 
 export function ResultsPanel({ output }: { output: EngineOutput }) {
-  const { riskStratification, investigations, diagnosisSuggestions, treatmentPlan, guidelineReferences } = output;
+  const { riskStratification, investigations, diagnosisSuggestions, treatmentPlan } = output;
+
+  const [refs, setRefs] = useState<RetrievedReference[]>(
+    output.guidelineReferences.map((r) => {
+      const chunk = GUIDELINE_CHUNKS.find((c) => c.id === r.chunkId);
+      return { chunkId: r.chunkId, heading: r.heading, text: chunk?.text ?? '', similarity: null, source: 'lexical' as const };
+    })
+  );
+  const [backend, setBackend] = useState<'vector' | 'lexical'>('lexical');
+  const [loading, setLoading] = useState(false);
+  const [warning, setWarning] = useState<string | null>(null);
+
+  useEffect(() => {
+    let cancelled = false;
+    setLoading(true);
+    fetch('/api/retrieve-guidelines', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ queryTerms: output.guidelineQueryTerms, topN: 6 }),
+    })
+      .then((r) => r.json())
+      .then((data) => {
+        if (cancelled) return;
+        if (Array.isArray(data?.results) && data.results.length > 0) {
+          setRefs(data.results);
+          setBackend(data.backend === 'vector' ? 'vector' : 'lexical');
+        }
+        setWarning(data?.warning ?? null);
+      })
+      .catch(() => {
+        // Instant lexical results (set above) remain on screen — no user-facing error needed.
+      })
+      .finally(() => !cancelled && setLoading(false));
+    return () => {
+      cancelled = true;
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [JSON.stringify(output.guidelineQueryTerms)]);
 
   return (
     <div className="space-y-5">
@@ -120,20 +167,30 @@ export function ResultsPanel({ output }: { output: EngineOutput }) {
       </Card>
 
       <Card title="Guideline references retrieved">
+        <div className="mb-2 flex flex-wrap items-center gap-2">
+          <span className={`rounded-full border px-2.5 py-0.5 text-xs font-medium ${backend === 'vector' ? 'border-emerald-300 bg-emerald-100 text-emerald-800' : 'border-slate-300 bg-slate-100 text-slate-600'}`}>
+            {backend === 'vector' ? 'Vector RAG (Supabase pgvector)' : 'Lexical keyword retrieval (fallback)'}
+          </span>
+          {loading && <span className="text-xs text-slate-400">retrieving…</span>}
+        </div>
         <p className="mb-2 text-xs text-slate-400">
-          Passages retrieved from the attached source (Weinberg &amp; Rali, &quot;Acute pulmonary embolism in adults: Treatment overview and prognosis,&quot; UpToDate Topic 8265 Version 121.0) via lexical keyword retrieval.
+          Passages retrieved from the attached source (Weinberg &amp; Rali, &quot;Acute pulmonary embolism in adults: Treatment overview and prognosis,&quot; UpToDate Topic 8265 Version 121.0).
         </p>
+        {warning && backend === 'lexical' && (
+          <p className="mb-2 rounded-lg bg-amber-50 p-2 text-xs text-amber-700">{warning}</p>
+        )}
         <div className="space-y-2">
-          {guidelineReferences.map((ref) => {
-            const chunk = GUIDELINE_CHUNKS.find((c) => c.id === ref.chunkId);
-            if (!chunk) return null;
-            return (
-              <details key={ref.chunkId} className="rounded-lg border border-slate-100 bg-slate-50 p-2">
-                <summary className="cursor-pointer text-sm font-medium text-slate-700">{chunk.heading}</summary>
-                <p className="mt-1 text-xs text-slate-600">{chunk.text}</p>
-              </details>
-            );
-          })}
+          {refs.map((ref) => (
+            <details key={ref.chunkId} className="rounded-lg border border-slate-100 bg-slate-50 p-2">
+              <summary className="cursor-pointer text-sm font-medium text-slate-700">
+                {ref.heading}
+                {ref.similarity !== null && (
+                  <span className="ml-2 text-xs font-normal text-slate-400">similarity {ref.similarity.toFixed(2)}</span>
+                )}
+              </summary>
+              <p className="mt-1 text-xs text-slate-600">{ref.text}</p>
+            </details>
+          ))}
         </div>
       </Card>
 
